@@ -1,0 +1,94 @@
+###############################################################################
+# SSH Anomaly Detection
+# MITRE ATT&CK: T1078.002 - Valid Accounts: Default Accounts
+#
+# Detects anomalous SSH behavior using baselining, statistical analysis,
+# and out-of-band pattern detection.
+###############################################################################
+
+# === Impossible Travel Detection ===
+# Same user authenticated from geographically impossible locations
+# within a time window that violates physics
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city as src_city, country as src_country, lat, lon
+| streamstats time_window=1h values(lat) as prev_lat, values(lon) as prev_lon,
+    values(src_city) as prev_city, values(src_country) as prev_country,
+    first(_time) as prev_time by target_user
+| eval distance_km = sqrt(pow((lat - prev_lat) * 111.32, 2) + pow((lon - prev_lon) * 111.32 * cos(lat * 3.14159 / 180), 2))
+| eval time_diff_hours = (_time - prev_time) / 3600
+| eval required_speed = if(time_diff_hours > 0, distance_km / time_diff_hours, 0)
+| where required_speed > 900 AND required_speed < 100000
+| eval anomaly_type = "impossible_travel",
+       confidence = "HIGH"
+| table _time, target_user, src_ip, src_city, prev_city,
+        distance_km, time_diff_hours, required_speed, anomaly_type
+
+# === Off-Hours Login Detection ===
+# Logins occurring outside normal business hours (9am-5pm local time)
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| eval login_hour = strftime(_time, "%H")
+| eval login_dow = strftime(_time, "%u")
+| eval is_weekend = if(login_dow >= 6, true, false)
+| eval is_off_hours = if(login_hour < 7 OR login_hour > 19 OR is_weekend, true, false)
+| where is_off_hours = true
+| lookup geoip src_ip OUTPUT city, country
+| eval anomaly_type = "off_hours_login",
+       risk_score = case(
+           is_weekend == true AND (login_hour < 6 OR login_hour > 22), 80,
+           is_weekend == true, 60,
+           is_off_hours == true, 40,
+           1
+       )
+| sort - risk_score
+| table _time, target_user, src_ip, city, country, login_hour, login_dow,
+        is_weekend, risk_score, anomaly_type
+
+# === First-Time Login Detection ===
+# A user logging in from an IP/city they've never used before
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city, country
+| eventstats values(src_ip) as historical_ips, values(city) as historical_cities
+    by target_user
+| eval is_new_ip = if(mvfind(historical_ips, src_ip) < 0, true, false)
+| eval is_new_city = if(mvfind(historical_cities, city) < 0, true, false)
+| where is_new_ip = true OR is_new_city = true
+| eval anomaly_type = case(
+       is_new_ip == true AND is_new_city == true, "new_identity_login",
+       is_new_ip == true, "new_ip_login",
+       1
+   ),
+   confidence = case(
+       anomaly_type == "new_identity_login", "HIGH",
+       anomaly_type == "new_ip_login", "MEDIUM"
+   )
+| table _time, target_user, src_ip, city, country, anomaly_type, confidence
+
+# === Concurrent Session Anomaly ===
+# Same user active from multiple distinct IPs simultaneously
+index=linux_secure sourcetype=linux_secure
+| rex "(?<event_type>Accepted|Failed) password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| search event_type="Accepted"
+| bucket _time span=1m
+| stats dc(src_ip) as active_sessions by target_user, _time
+| where active_sessions >= 3
+| eval anomaly_type = "concurrent_session_abuse"
+| sort - active_sessions
+| table _time, target_user, active_sessions, anomaly_type
+
+# === Statistical Outlier Detection ===
+# Uses average and standard deviation to find anomalous login volumes
+index=linux_secure sourcetype=linux_secure "Failed password"
+| bucket _time span=1h
+| stats count as hourly_failures by src_ip, _time
+| eventstats avg(hourly_failures) as avg_failures,
+           stdev(hourly_failures) as stdev_failures by src_ip
+| eval upper_bound = avg_failures + (3 * stdev_failures)
+| where hourly_failures > upper_bound AND hourly_failures > 10
+| eval anomaly_type = "statistical_outlier",
+       deviation_factor = round(hourly_failures / (avg_failures + 1), 2)
+| sort - deviation_factor
+| table _time, src_ip, hourly_failures, avg_failures, stdev_failures,
+        deviation_factor, anomaly_type

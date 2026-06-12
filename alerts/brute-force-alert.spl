@@ -1,0 +1,45 @@
+###############################################################################
+# Brute Force Alert - Saved Search Definition
+# MITRE ATT&CK: T1110 - Brute Force
+#
+# Triggers when 10+ failed SSH passwords from same IP within 5 minutes.
+# Sends alert to SOC via email/Slack/webhook.
+###############################################################################
+
+[SSH - Brute Force Detection]
+disabled = 0
+enableSched = 1
+alert_type = always
+alert.severity = 3
+alert.suppress = 1
+alert.suppress.fields = src_ip
+alert.suppress.period = 1h
+alert.track = 1
+counttype = number of events
+quantity = 0
+relation = greater than
+cron_schedule = */5 * * * *
+description = Detects SSH brute force attacks - 10+ failed attempts from same IP in 5 minutes
+dispatch.earliest_time = -5m
+dispatch.latest_time = now
+displayview = flashtimeline
+is_scheduled = 1
+realtime_schedule = 1
+request.ui_dispatch_app = search
+request.ui_dispatch_view = search
+search = index=linux_secure sourcetype=linux_secure "Failed password" \
+  | rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)" \
+  | stats count by src_ip, target_user \
+  | where count >= 10 \
+  | lookup geoip src_ip OUTPUT city, country \
+  | eval severity = "HIGH", alert_type = "brute_force" \
+  | table src_ip, target_user, count, city, country, severity, alert_type
+action.email = 1
+action.email.to = soc@example.com
+action.email.subject = Splunk Alert: SSH Brute Force Detected from $result.src_ip$
+action.email.include = 1
+action.email.sendresults = 1
+action.email.format = table
+action.slack = 0
+action.slack.param.channel = #security-alerts
+action.slack.param.message = SSH Brute Force Alert: $result.count$ failed attempts from $result.src_ip$ targeting $result.target_user$

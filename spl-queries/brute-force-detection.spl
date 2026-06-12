@@ -1,0 +1,70 @@
+###############################################################################
+# SSH Brute Force Detection
+# MITRE ATT&CK: T1110 - Brute Force
+#
+# Detects multiple failed SSH authentication attempts within a sliding
+# time window from the same source IP address.
+###############################################################################
+
+# === Basic Brute Force Detection ===
+# Identifies IPs with 5+ failed logins in 5 minutes
+index=linux_secure sourcetype=linux_secure "Failed password"
+| bin _time span=5m
+| stats count by src_ip, _time
+| where count >= 5
+| rename src_ip as "Source IP", count as "Failed Attempts"
+| sort - "Failed Attempts"
+| table _time, "Source IP", "Failed Attempts"
+
+# === Advanced Brute Force with Enrichment ===
+# Same detection with Geo-IP enrichment and threat scoring
+index=linux_secure sourcetype=linux_secure "Failed password"
+| bucket _time span=5m
+| stats count by src_ip, _time
+| where count >= 5
+| lookup geoip src_ip OUTPUT city, country, lat, lon, is_anonymous_proxy
+| eval threat_score = case(
+    count >= 50, "CRITICAL",
+    count >= 20, "HIGH",
+    count >= 10, "MEDIUM",
+    count >= 5,  "LOW"
+  )
+| lookup known_attackers.csv src_ip OUTPUTGROUP attack_details
+| eval known_threat = if(isnotnull(attack_details), "YES", "NO")
+| sort - count
+| table _time, src_ip, count, city, country, threat_score, known_threat, is_anonymous_proxy
+
+# === Targeted Account Brute Force ===
+# Detects brute force against specific high-value accounts (root, admin, etc.)
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| where lower(target_user) IN ("root", "admin", "administrator", "ubuntu", "ec2-user")
+| bucket _time span=5m
+| stats count by src_ip, target_user, _time
+| where count >= 3
+| eval severity = "HIGH"
+| sort - count
+| table _time, src_ip, target_user, count, severity
+
+# === Distributed Brute Force (Multiple Users, Single IP) ===
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| bucket _time span=10m
+| stats dc(target_user) as unique_users, count by src_ip, _time
+| where unique_users >= 5 AND count >= 10
+| eval attack_type = "distributed_brute_force"
+| sort - unique_users
+| table _time, src_ip, unique_users, count, attack_type
+
+# === Successful Brute Force (Break-in Detection) ===
+# Detects when a successful login follows many failed attempts
+index=linux_secure sourcetype=linux_secure
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| eventstats count(eval(match(_raw, "Failed password"))) as failed_count by src_ip, target_user
+| search "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| where failed_count >= 5
+| eval alert = "POSSIBLE_BREACH"
+| eval risk_score = failed_count * 10
+| sort - failed_count
+| table _time, src_ip, target_user, failed_count, risk_score, alert

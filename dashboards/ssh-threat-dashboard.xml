@@ -1,0 +1,135 @@
+<form>
+  <label>SSH Threat Detection Dashboard</label>
+  <description>Real-time monitoring of SSH-based attacks and anomalies</description>
+  <fieldset submitButton="false">
+    <input type="time" token="time_range">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>SSH Attack Activity (Last 24h)</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure
+| rex "((?<event_type>Accepted|Failed) password for (?<target_user>\S+) from (?<src_ip>\S+))"
+| search event_type=*
+| bucket _time span=1h
+| stats count by _time, event_type
+| sort _time</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Count</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Top Brute Force Sources</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| stats count by src_ip
+| sort - count
+| head 20</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="count">20</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Geographic Threat Map</title>
+      <map>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city, country, lat, lon
+| stats count by src_ip, city, country, lat, lon
+| geom geoip lat, lon</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="mapping.mapType">filledCountry</option>
+      </map>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Targeted Accounts (Top 10)</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| stats count by target_user
+| sort - count
+| head 10</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="count">10</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Recent Threat Alerts</title>
+      <table>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| bucket _time span=5m
+| stats count by src_ip, target_user, _time
+| where count >= 5
+| eval severity = case(
+    count >= 20, "CRITICAL",
+    count >= 10, "HIGH",
+    count >= 5, "MEDIUM"
+  )
+| lookup geoip src_ip OUTPUT city, country
+| sort - _time
+| table _time, src_ip, target_user, count, severity, city, country</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+        <option name="rowNumbers">true</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Impossible Travel Events</title>
+      <table>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city as src_city, country as src_country, lat, lon
+| streamstats time_window=1h values(lat) as prev_lat, values(lon) as prev_lon,
+    values(src_city) as prev_city by target_user
+| eval distance_km = sqrt(pow((lat - prev_lat) * 111.32, 2) + pow((lon - prev_lon) * 111.32 * cos(lat * 3.14159 / 180), 2))
+| eval time_diff_hours = (_time - prev_time) / 3600
+| eval required_speed = if(time_diff_hours > 0, distance_km / time_diff_hours, 0)
+| where required_speed > 900
+| table _time, target_user, src_ip, src_city, prev_city, distance_km, required_speed</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

@@ -1,0 +1,163 @@
+<form>
+  <label>SSH Operations Monitoring Dashboard</label>
+  <description>Operational visibility for SSH infrastructure and user activity</description>
+  <fieldset submitButton="false">
+    <input type="time" token="time_range">
+      <label>Time Range</label>
+      <default>
+        <earliest>-7d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>SSH Login Volume</title>
+      <single>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| stats count as total_logins</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">none</option>
+        <option name="rangeValues">[0,1]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Failed Logins</title>
+      <single>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Failed password"
+| stats count as total_failures</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[0,100,1000,10000]</option>
+        <option name="rangeColors">["0x5cb85c","0xf0ad4e","0xd9534f","0xcc0000"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Success Rate</title>
+      <single>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure
+| rex "((?<event_type>Accepted|Failed) password)"
+| search event_type=*
+| stats count(eval(event_type="Accepted")) as successes, count(eval(event_type="Failed")) as failures
+| eval success_rate = round(successes / (successes + failures) * 100, 2)
+| table success_rate</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0,50,75,90]</option>
+        <option name="rangeColors">["0xd9534f","0xf0ad4e","0x5cb85c","0x337ab7"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Unique Users</title>
+      <single>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+)"
+| stats dc(target_user) as unique_users</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorMode">none</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Login Activity (Hourly)</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure
+| rex "((?<event_type>Accepted|Failed) password)"
+| search event_type=*
+| bucket _time span=1h
+| stats count by _time, event_type
+| sort _time</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Login Heatmap (Hour vs Day of Week)</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| eval hour = strftime(_time, "%H")
+| eval dow = strftime(_time, "%A")
+| stats count by hour, dow
+| sort hour, dow</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">heatmap</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Top Users by Activity</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+)"
+| stats count by target_user
+| sort - count
+| head 15</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="count">15</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Authentication Methods</title>
+      <chart>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure
+| rex "Accepted (?<auth_method>password|publickey|keyboard-interactive|gssapi-with-mic)"
+| search auth_method=*
+| stats count by auth_method</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Recent Off-Hours Logins</title>
+      <table>
+        <search>
+          <query>index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| eval login_hour = strftime(_time, "%H")
+| eval login_dow = strftime(_time, "%u")
+| where login_hour < 7 OR login_hour > 19 OR login_dow >= 6
+| lookup geoip src_ip OUTPUT city, country
+| sort - _time
+| table _time, target_user, src_ip, city, country, login_hour</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

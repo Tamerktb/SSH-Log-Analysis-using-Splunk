@@ -1,0 +1,11 @@
+user,policy_violation,severity,description,remediation
+root,direct_root_login,high,Direct SSH login as root prohibited,Use sudo with regular user account
+admin,shared_account,medium,Shared admin account used by multiple users,Assign individual accounts
+deploy,automated_deploy,low,Automated deployment account - monitor for unusual activity,Restrict to CI/CD IPs
+svc_backup,off_hours_activity,medium,Backup service account active outside maintenance window,Verify scheduled task
+test_user,stale_account,high,Test account with recent login activity,Disable or remove test account
+guest,guest_account_usage,medium,Guest account enabled and in use,Disable guest account immediately
+ansible,ansible_activity,low,Ansible automation account detected,Verify playbook and restrict sources
+nagios,monitoring_account,low,Monitoring service account login detected,Restrict to monitoring server IPs
+oracle,oracle_service_account,medium,Oracle service account login from non-standard IP,Verify database maintenance window
+docker,container_deploy,low,Docker deployment account activity,Verify CI/CD pipeline

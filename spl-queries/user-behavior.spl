@@ -1,0 +1,94 @@
+###############################################################################
+# SSH User Behavior Analytics (UBA)
+# MITRE ATT&CK: T1078 - Valid Accounts
+#
+# Tracks SSH login patterns per user to detect privilege escalation,
+# account sharing, credential misuse, and insider threats.
+###############################################################################
+
+# === User Login Baseline ===
+# Establishes normal login patterns per user for anomaly comparison
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| bucket _time span=1d
+| stats count as daily_logins, dc(src_ip) as unique_ips,
+        values(src_ip) as ip_list by target_user, _time
+| eventstats avg(daily_logins) as avg_logins, stdev(daily_logins) as stdev_logins by target_user
+| eval upper_normal = avg_logins + (2 * stdev_logins)
+| where daily_logins > upper_normal OR unique_ips > 3
+| eval anomaly = case(
+    daily_logins > upper_normal, "login_volume_anomaly",
+    unique_ips > 3, "ip_diversity_anomaly"
+  )
+| sort - daily_logins
+| table target_user, _time, daily_logins, avg_logins, unique_ips, anomaly
+
+# === Privilege Escalation Tracking ===
+# Monitors for users gaining access to privileged accounts
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| where lower(target_user) IN ("root", "toor", "admin", "administrator")
+| lookup geoip src_ip OUTPUT city, country
+| stats count as priv_logins, dc(src_ip) as source_ips,
+        values(src_ip) as ips, values(city) as cities by target_user
+| where priv_logins > 0
+| eval risk_score = priv_logins * 15
+| sort - risk_score
+| table target_user, priv_logins, source_ips, cities, risk_score
+
+# === Account Sharing Detection ===
+# Multiple distinct users authenticating from the same source IP
+# within a short time window suggests shared credentials or session hijacking
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| bucket _time span=15m
+| stats dc(target_user) as unique_users, values(target_user) as user_list by src_ip, _time
+| where unique_users >= 3
+| eval anomaly_type = "account_sharing",
+       risk_score = unique_users * 20
+| sort - unique_users
+| table _time, src_ip, unique_users, user_list, risk_score, anomaly_type
+
+# === Session Duration Analysis ===
+# SSH sessions that are unusually short (potential automated tool)
+# or unusually long (potential persistence or data exfiltration)
+index=linux_secure sourcetype=linux_secure
+| rex "Accepted (?<auth_type>password|publickey) for (?<target_user>\S+) from (?<src_ip>\S+)"
+| search auth_type=*
+| transaction target_user, src_ip maxspan=24h
+| eval session_hours = duration / 3600
+| where session_hours < 0.01 OR session_hours > 8
+| eval anomaly_type = if(session_hours < 0.01, "session_too_short", "session_too_long"),
+       risk_score = if(session_hours < 0.01, 30, 50)
+| table _time, target_user, src_ip, session_hours, anomaly_type, risk_score
+
+# === Privileged Account Lateral Movement ===
+# A privileged user logging into multiple systems in sequence
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+) port (?<src_port>\d+) ssh2"
+| search target_user IN ("root", "admin", "deploy", "ansible", "svc_*")
+| transaction target_user maxspan=30m
+| eval host_count = mvcount(host)
+| eval ip_count = mvcount(src_ip)
+| where host_count >= 3 OR ip_count >= 3
+| eval anomaly_type = "lateral_movement",
+       risk_score = host_count * 25
+| sort - risk_score
+| table _time, target_user, host_count, ip_count, anomaly_type, risk_score
+
+# === New User Account Detection ===
+# Detects creation of new SSH user accounts
+index=linux_secure sourcetype=linux_secure "New user"
+| rex "New user (?:name=(?<new_user>\S+)|'(?<new_user>\S+)')"
+| eval anomaly_type = "new_account_creation",
+       risk_score = 40
+| table _time, new_user, host, anomaly_type, risk_score
+
+# === Sudo / Privilege Escalation via SSH ===
+# Tracks sudo command execution after SSH login
+index=linux_secure sourcetype=linux_secure "sudo"
+| rex "COMMAND=(?<command>[^|$]+)"
+| search command=*
+| top limit=20 command
+| eval anomaly_type = "sudo_command_audit"
+| table command, count, anomaly_type

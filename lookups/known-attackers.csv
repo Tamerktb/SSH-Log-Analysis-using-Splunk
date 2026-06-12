@@ -1,0 +1,11 @@
+src_ip,threat_type,confidence,source,first_seen,last_seen,notes
+10.0.0.1,ssh_scanner,high,abuseipdb,2025-01-15,2025-06-01,Known SSH scanning node
+10.0.0.2,brute_force,critical,alienvault,2025-02-10,2025-06-01,Observed in multiple brute force campaigns
+10.0.0.3,credential_stuffing,high,threatfox,2025-03-01,2025-05-30,Associated with credential stuffing toolkit
+10.0.0.4,tor_exit_node,medium,tor_project,2025-01-01,2025-06-01,Tor exit node - legitimate use possible
+10.0.0.5,proxy_vpn,medium,geolocation,2025-04-01,2025-06-01,Commercial VPN endpoint
+10.0.0.6,c2_server,critical,infraguard,2025-05-01,2025-06-01,Confirmed C2 infrastructure
+10.0.0.7,ssh_scanner,high,greynoise,2025-02-15,2025-06-01,Internet-wide SSH scanner
+10.0.0.8,brute_force,medium,abuseipdb,2025-04-15,2025-06-01,Opportunistic brute force
+10.0.0.9,malicious_actor,critical,infraguard,2025-03-20,2025-06-01,APT-associated infrastructure
+10.0.0.10,proxy_vpn,low,geolocation,2025-05-01,2025-06-01,Residential proxy network

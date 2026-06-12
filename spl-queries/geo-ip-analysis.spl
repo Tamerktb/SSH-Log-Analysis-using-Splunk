@@ -1,0 +1,83 @@
+###############################################################################
+# SSH Geo-IP Threat Intelligence
+#
+# Enriches SSH events with geographic data and external threat intelligence
+# to identify high-risk login sources.
+###############################################################################
+
+# === Geo-IP Enriched Login Map ===
+# All SSH login attempts with geographic context
+index=linux_secure sourcetype=linux_secure
+| rex "((?<event_type>Accepted|Failed) password for (?<target_user>\S+) from (?<src_ip>\S+))"
+| search event_type=*
+| lookup geoip src_ip OUTPUT city, country, lat, lon, is_anonymous_proxy, is_satellite_provider
+| stats count by src_ip, city, country, lat, lon, event_type, is_anonymous_proxy
+| geom geoip lat, lon
+| table src_ip, city, country, lat, lon, event_type, count, is_anonymous_proxy
+
+# === Tor / Proxy / VPN Detection ===
+# Flag logins originating from anonymity networks or proxies
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city, country, is_anonymous_proxy, is_satellite_provider
+| where is_anonymous_proxy = true OR is_satellite_provider = true
+| eval threat_indicator = case(
+    is_anonymous_proxy == true, "TOR_OR_PROXY",
+    is_satellite_provider == true, "SATELLITE_PROVIDER"
+  )
+| eval risk_score = 70
+| sort - _time
+| table _time, target_user, src_ip, city, country, threat_indicator, risk_score
+
+# === High-Risk Country Detection ===
+# Flag logins from countries with elevated cyber threat activity
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city, country
+| where lower(country) IN ("russia", "china", "north korea", "iran", "nigeria")
+| eval threat_intel_source = "geoip_high_risk_country",
+       risk_score = 60
+| stats count by target_user, src_ip, country, city, risk_score
+| sort - count
+| table target_user, src_ip, country, city, count, risk_score, threat_intel_source
+
+# === Threat Intelligence Feed Correlation ===
+# Cross-reference SSH source IPs against known threat intelligence feeds
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| stats count as fail_count by src_ip
+| eval threat_feed = "https://api.abuseipdb.com/api/v2/check"
+| lookup known_attackers.csv src_ip OUTPUTGROUP attack_details
+| where isnotnull(attack_details)
+| lookup geoip src_ip OUTPUT city, country
+| eval confidence = case(
+    fail_count >= 100, "VERY_HIGH",
+    fail_count >= 50, "HIGH",
+    fail_count >= 20, "MEDIUM",
+    fail_count >= 5, "LOW"
+  )
+| sort - fail_count
+| table src_ip, fail_count, country, city, confidence, attack_details
+
+# === Geographic Anomaly Detection ===
+# Detect when a user logs in from a country they haven't used before
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT city, country
+| eventstats values(country) as known_countries by target_user
+| eval is_new_country = if(mvfind(known_countries, country) < 0, true, false)
+| where is_new_country = true
+| stats min(_time) as first_seen, latest(_time) as last_seen,
+        values(country) as new_countries by target_user
+| eval anomaly_type = "geo_anomaly"
+| table target_user, first_seen, last_seen, new_countries, anomaly_type
+
+# === Hourly Geo-IP Heatmap ===
+# Visualizes failed login sources by hour and country
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex "Failed password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup geoip src_ip OUTPUT country
+| eval hour = strftime(_time, "%H")
+| stats count by country, hour
+| sort country, hour
+| table country, hour, count
