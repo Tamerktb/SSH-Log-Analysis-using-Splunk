@@ -1,0 +1,78 @@
+# 06 - SSH - Off-Hours Login
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Accepted password" OR "Accepted publickey" OR "Accepted keyboard-interactive")
+#   | `ssh_allowlist_filter(src_ip)`
+#   | eval hour = strftime(_time, "%H")
+#   | where hour < 6 OR hour >= 22
+#   | stats count by user_name, hour
+#   | where count >= 3
+#   schedule 0 * * * *  window -15m  severity 2  suppress user 8h
+#
+# The hour filter is a Painless script query: Splunk's strftime() is local time, so
+# utc_offset_hours below shifts the UTC @timestamp into the SOC's local time
+# (3 = Asia/Amman). Change it (or drop the parameter) if the analyst sits elsewhere -
+# this is the ONLY rule whose behaviour depends on the analyst's timezone.
+name: SSH - Off-Hours Login
+type: frequency
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+num_events: 3
+timeframe:
+  minutes: 15
+buffer_time:
+  minutes: 15
+
+query_key: user.name
+realert:
+  hours: 8
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  - term:
+      event.action: ssh_login
+  - bool:
+      must_not:
+        - exists:
+            field: allow_reason
+  # Off-hours predicate: local hour < 06:00 or >= 22:00.
+  # Verified against the live data set (matches only 22:00-05:59 local).
+  - script:
+      script:
+        lang: painless
+        params:
+          field: "@timestamp"
+          utc_offset_hours: 3
+          start_hour: 6
+          end_hour: 22
+        source: >-
+          long millis = doc[params.field].value.toInstant().toEpochMilli();
+          long hour = ((millis / 3600000L) + params.utc_offset_hours) % 24;
+          if (hour < 0) { hour += 24; }
+          return hour < params.start_hour || hour >= params.end_hour;
+
+alert:
+  - debug
+alert_subject: "SSH off-hours login - {0} ({1} logins)"
+alert_subject_args:
+  - user.name
+  - num_hits
+alert_text: |
+  Off-hours SSH login: account {0} logged in {1} times between {2} and {3} from {4}
+  (outside 06:00-22:00 local). Threat intel: {5}
+alert_text_args:
+  - user.name
+  - num_hits
+  - start_time
+  - end_time
+  - source.ip
+  - threat_intel
+
+severity: LOW
+splunk_severity: 2
+detection: off_hours_login
+mitre: T1078
+owner: soc

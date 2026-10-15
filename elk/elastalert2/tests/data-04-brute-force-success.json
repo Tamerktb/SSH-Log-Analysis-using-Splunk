@@ -1,0 +1,107 @@
+[
+    {
+        "_id":  "t-5ba662d52f",
+        "@timestamp":  "2026-10-15T12:00:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-f525f33e5d",
+        "@timestamp":  "2026-10-15T12:00:30.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-ef9a02f0c4",
+        "@timestamp":  "2026-10-15T12:01:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-6ae2939ca6",
+        "@timestamp":  "2026-10-15T12:01:30.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-e7b2adf108",
+        "@timestamp":  "2026-10-15T12:02:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-3347b8b63d",
+        "@timestamp":  "2026-10-15T12:02:30.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-48cc7299c3",
+        "@timestamp":  "2026-10-15T12:04:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.77"
+                   },
+        "user":  {
+                     "name":  "svc_deploy"
+                 },
+        "message":  "test fixture"
+    }
+]

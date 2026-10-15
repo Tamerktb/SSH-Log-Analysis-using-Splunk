@@ -1,0 +1,302 @@
+[
+    {
+        "_id":  "t-64562041ee",
+        "@timestamp":  "2026-10-15T12:00:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u01"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-f8fbf199df",
+        "@timestamp":  "2026-10-15T12:00:05.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u02"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-5043df1675",
+        "@timestamp":  "2026-10-15T12:00:10.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u03"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-46ac052d30",
+        "@timestamp":  "2026-10-15T12:00:15.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u04"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-7390ae9a17",
+        "@timestamp":  "2026-10-15T12:00:20.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u05"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-7dc54971d2",
+        "@timestamp":  "2026-10-15T12:00:25.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u06"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-02abc86a45",
+        "@timestamp":  "2026-10-15T12:00:30.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u07"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-95ce63f96d",
+        "@timestamp":  "2026-10-15T12:00:35.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u08"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-f5fad18a6d",
+        "@timestamp":  "2026-10-15T12:00:40.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u09"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-092e52b65a",
+        "@timestamp":  "2026-10-15T12:00:45.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u10"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-3ede1fada6",
+        "@timestamp":  "2026-10-15T12:00:50.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u11"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-4790846841",
+        "@timestamp":  "2026-10-15T12:00:55.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u12"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-e06ea21bd6",
+        "@timestamp":  "2026-10-15T12:01:00.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u13"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-9eb6e12b1b",
+        "@timestamp":  "2026-10-15T12:01:05.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u14"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-a96fa10883",
+        "@timestamp":  "2026-10-15T12:01:10.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u15"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-b2955e1bc8",
+        "@timestamp":  "2026-10-15T12:01:15.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u01"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-6e3fbdfb96",
+        "@timestamp":  "2026-10-15T12:01:20.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u02"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-3fa8257d9f",
+        "@timestamp":  "2026-10-15T12:01:25.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u03"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-4b3d61f742",
+        "@timestamp":  "2026-10-15T12:01:30.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u04"
+                 },
+        "message":  "test fixture"
+    },
+    {
+        "_id":  "t-a2b70d28bb",
+        "@timestamp":  "2026-10-15T12:01:35.000Z",
+        "event":  {
+                      "module":  "sshloganalysis",
+                      "action":  "ssh_login_failed"
+                  },
+        "source":  {
+                       "ip":  "198.51.100.9"
+                   },
+        "user":  {
+                     "name":  "u05"
+                 },
+        "message":  "test fixture"
+    }
+]

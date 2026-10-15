@@ -1,0 +1,73 @@
+# 04 - SSH - Successful Brute Force (Possible Compromise)
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Failed password" OR "Accepted password")
+#   | eval is_fail=if(like(_raw,"%Failed password%"),1,0)
+#   | eval is_success=if(like(_raw,"%Accepted%"),1,0)
+#   | `ssh_allowlist_filter(src_ip)`
+#   | stats sum(is_fail) as failed_count sum(is_success) as success_count by src_ip, target_user
+#   | where failed_count >= 5 AND success_count > 0
+#   schedule */10 * * * *  window -10m  severity 5 (CRITICAL)  suppress src_ip 4h
+#
+# This is the highest-value SSH detection: repeated failures followed by a success.
+name: SSH - Successful Brute Force (Possible Compromise)
+type: ssh_ruletypes.SshBruteForceSuccess
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+timeframe:
+  minutes: 10
+
+# Splunk groups by src_ip AND target_user, so both go in the composite group key.
+# Events missing either half are skipped (see SshRuleBase.group_key): a login cannot be
+# correlated with the failures of an account that was never identified.
+group_by:
+  - source.ip
+  - user.name
+
+min_failed: 5
+min_success: 1
+
+# Optional overrides for the module defaults (ssh_login_failed/ssh_pam_failure, ssh_login).
+failed_actions: [ssh_login_failed, ssh_pam_failure]
+success_actions: [ssh_login]
+
+query_key: source.ip
+realert:
+  hours: 4
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  # Both halves of the correlation: the failures and the accepted login.
+  - terms:
+      event.action: [ssh_login_failed, ssh_pam_failure, ssh_login]
+  - bool:
+      must_not:
+        - exists:
+            field: allow_reason
+
+alert:
+  - debug
+alert_subject: "SSH possible compromise - {0} logged in after {1} failures from {2}"
+alert_subject_args:
+  - user.name
+  - failed_count
+  - source.ip
+alert_text: |
+  Successful brute force: account {0} was accepted from {1} after {2} failed logins
+  and {3} successful one(s) in the last 10 minutes. Thresholds: {4}
+  Treat the host as potentially compromised until the login is verified.
+alert_text_args:
+  - user.name
+  - source.ip
+  - failed_count
+  - success_count
+  - threshold
+
+severity: CRITICAL
+splunk_severity: 5
+detection: brute_force_success
+mitre: T1110.001
+owner: soc

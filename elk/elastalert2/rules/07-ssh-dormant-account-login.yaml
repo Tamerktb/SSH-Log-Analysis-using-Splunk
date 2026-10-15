@@ -1,0 +1,64 @@
+# 07 - SSH - Dormant Account Login
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Accepted password" OR "Accepted publickey" OR "Accepted keyboard-interactive")
+#   | `ssh_allowlist_filter(src_ip)`
+#   | stats max(_time) as last_login by user_name
+#   | where (now - last_login) > 604800   ... then match agains the last 15m of accepted logins
+#   schedule 0 */6 * * *  window -15m (7d baseline)  severity 3  suppress user 24h
+#
+# ElastAlert equivalent: `new_term` keeps a rolling terms window of every account that
+# has logged in over the last `terms_window_size` (7 days, the Splunk baseline) and
+# alerts when an account logs in that it has not seen in that window.
+#
+# NOTE: use_keyword_postfix MUST stay false - the ECS template maps user.name as a
+# keyword, so a `<field>.keyword` terms aggregation would find nothing.
+name: SSH - Dormant Account Login
+type: new_term
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+fields:
+  - user.name
+terms_window_size:
+  days: 7
+window_step_size:
+  days: 1
+use_keyword_postfix: false
+
+buffer_time:
+  minutes: 15
+
+query_key: user.name
+realert:
+  hours: 24
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  - term:
+      event.action: ssh_login
+  - bool:
+      must_not:
+        - exists:
+            field: allow_reason
+
+alert:
+  - debug
+alert_subject: "SSH dormant account login - {0}"
+alert_subject_args:
+  - user.name
+alert_text: |
+  Dormant account login: {0} authenticated from {1} (first accepted login seen in the
+  last 7 days). Threat intel: {2}
+alert_text_args:
+  - user.name
+  - source.ip
+  - threat_intel
+
+severity: HIGH
+splunk_severity: 3
+detection: dormant_account_login
+mitre: T1078.002
+owner: soc

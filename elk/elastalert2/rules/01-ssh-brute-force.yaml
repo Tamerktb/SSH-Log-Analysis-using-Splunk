@@ -1,0 +1,62 @@
+# 01 - SSH - Brute Force Detection
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Failed password" OR "Invalid user" OR "authentication failure")
+#   | `ssh_allowlist_filter(src_ip)`
+#   | stats count by src_ip, target_user
+#   | where count >= 10
+#   | `ssh_ti_enrich(src_ip)` | iplocation src_ip
+#   schedule */5 * * * *  window -5m  severity 3 (HIGH)  suppress src_ip 1h
+#
+# ElastAlert equivalent: `frequency` = N events in a timeframe grouped by query_key.
+name: SSH - Brute Force Detection
+type: frequency
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+num_events: 10
+timeframe:
+  minutes: 5
+
+# Splunk groups by src_ip (and reports target_user); the alerting key here is the
+# source IP, which is also what the 1h Splunk suppression keyed on.
+query_key: source.ip
+realert:
+  hours: 1
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  # `ssh_failed_logins`: "Failed password" OR "Invalid user" OR "authentication failure"
+  - terms:
+      event.action: [ssh_login_failed, ssh_pam_failure]
+  # `ssh_allowlist_filter(src_ip)` -> `lookup ssh_allowlist ... | where isnull(allow_reason)`.
+  # Allowlisted sources are tagged with allow_reason by the ssh-allowlist enrich policy.
+  - bool:
+      must_not:
+        - exists:
+            field: allow_reason
+
+alert:
+  - debug
+alert_subject: "SSH brute force - {0} failed logins from {1}"
+alert_subject_args:
+  - num_hits
+  - source.ip
+alert_text: |
+  Brute force against sshd: {0} failed logins from {1} (account: {2}) between {3} and {4}.
+  Threat intel: {5}
+alert_text_args:
+  - num_hits
+  - source.ip
+  - user.name
+  - start_time
+  - end_time
+  - threat_intel
+
+severity: HIGH
+splunk_severity: 3
+detection: brute_force
+mitre: T1110
+owner: soc

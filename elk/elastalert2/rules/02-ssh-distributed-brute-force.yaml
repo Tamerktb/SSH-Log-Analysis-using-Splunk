@@ -1,0 +1,62 @@
+# 02 - SSH - Distributed Brute Force Detection
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Failed password" OR "Invalid user" OR "authentication failure")
+#   | stats dc(src_ip) as src_count count as attempts by target_user
+#   | where src_count >= 8 AND attempts >= 20
+#   schedule */10 * * * *  window -10m  severity 3 (HIGH)  suppress target_user 2h
+#
+# No single ElastAlert built-in rule type can do "N DISTINCT values AND M total
+# events", so this one uses the custom type in ../ssh_ruletypes.py.
+# NB: this Splunk search has no allowlist filter - neither does this rule.
+name: SSH - Distributed Brute Force Detection
+type: ssh_ruletypes.SshDistributedBruteForce
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+timeframe:
+  minutes: 10
+
+# Splunk: `stats ... by target_user` -> one window per attacked account.
+# Events whose account did not resolve (e.g. `authentication failure` lines with no
+# user=) are skipped rather than grouped under a null account - see SshRuleBase.group_key.
+group_by:
+  - user.name
+distinct_key: source.ip
+min_distinct: 8
+min_count: 20
+
+# Alerting/suppression key (Splunk suppresses by target_user for 2h).
+query_key: user.name
+realert:
+  hours: 2
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  - terms:
+      event.action: [ssh_login_failed, ssh_pam_failure]
+
+alert:
+  - debug
+alert_subject: "SSH distributed brute force - {0} source IPs on {1}"
+alert_subject_args:
+  - distinct_count
+  - user.name
+alert_text: |
+  Distributed brute force: {0} distinct source IPs over {1} failed logins against
+  account {2} in the last 10 minutes. Thresholds: {3}
+  Source IPs (first 50): {4}
+alert_text_args:
+  - distinct_count
+  - event_count
+  - user.name
+  - threshold
+  - distinct_values
+
+severity: HIGH
+splunk_severity: 3
+detection: distributed_brute_force
+mitre: T1110.003
+owner: soc

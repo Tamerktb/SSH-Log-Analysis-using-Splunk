@@ -1,0 +1,83 @@
+{
+    "description":  "SSHLogAnalysis (ELK port) - ENRICH half: GeoLite2 geo (source.geo), allowlist match, live threat-intel (Tor/C2/Spamhaus ip_range) and analyst watchlist, flattened into a single threat_intel field. deploy_elk.py concatenates this after pipeline-ssh-auth.json into the single ES pipeline ssh-auth-pipeline.",
+    "processors":  [
+                       {
+                           "geoip":  {
+                                         "field":  "source.ip",
+                                         "target_field":  "source.geo",
+                                         "properties":  [
+                                                            "city_name",
+                                                            "country_iso_code",
+                                                            "continent_name",
+                                                            "location"
+                                                        ],
+                                         "ignore_missing":  true,
+                                         "ignore_failure":  true
+                                     }
+                       },
+                       {
+                           "enrich":  {
+                                          "policy_name":  "ssh-allowlist",
+                                          "field":  "source.ip",
+                                          "target_field":  "_allow",
+                                          "ignore_missing":  true,
+                                          "ignore_failure":  true
+                                      }
+                       },
+                       {
+                           "enrich":  {
+                                          "policy_name":  "ssh-tor",
+                                          "field":  "source.ip",
+                                          "target_field":  "_ti_tor",
+                                          "ignore_missing":  true,
+                                          "ignore_failure":  true
+                                      }
+                       },
+                       {
+                           "enrich":  {
+                                          "policy_name":  "ssh-c2",
+                                          "field":  "source.ip",
+                                          "target_field":  "_ti_c2",
+                                          "ignore_missing":  true,
+                                          "ignore_failure":  true
+                                      }
+                       },
+                       {
+                           "enrich":  {
+                                          "policy_name":  "ssh-spamhaus",
+                                          "field":  "source.ip",
+                                          "target_field":  "_ti_sbl",
+                                          "ignore_missing":  true,
+                                          "ignore_failure":  true
+                                      }
+                       },
+                       {
+                           "enrich":  {
+                                          "policy_name":  "ssh-watchlist",
+                                          "field":  "source.ip",
+                                          "target_field":  "_watch",
+                                          "ignore_missing":  true,
+                                          "ignore_failure":  true
+                                      }
+                       },
+                       {
+                           "script":  {
+                                          "lang":  "painless",
+                                          "ignore_failure":  true,
+                                          "source":  "def kinds = new ArrayList(); def detail = new HashMap(); if (ctx[\u0027_ti_tor\u0027] != null) { kinds.add(\u0027TOR_EXIT\u0027); def v = ctx[\u0027_ti_tor\u0027][\u0027tor_node_source\u0027]; if (v != null) { detail[\u0027tor_source\u0027] = v; } } if (ctx[\u0027_ti_c2\u0027] != null) { kinds.add(\u0027C2_BLOCKLIST\u0027); def v = ctx[\u0027_ti_c2\u0027][\u0027c2_source\u0027]; if (v != null) { detail[\u0027c2_source\u0027] = v; } } if (ctx[\u0027_ti_sbl\u0027] != null) { kinds.add(\u0027SPAMHAUS_DROP\u0027); def v = ctx[\u0027_ti_sbl\u0027][\u0027sbl_reference\u0027]; if (v != null) { detail[\u0027sbl_reference\u0027] = v; } def r = ctx[\u0027_ti_sbl\u0027][\u0027cidr\u0027]; if (r != null) { detail[\u0027cidr\u0027] = r; } } def joined = \u0027\u0027; for (def k : kinds) { if (joined.length() \u003e 0) { joined += \u0027|\u0027; } joined += k; } ctx[\u0027threat_intel_match\u0027] = kinds.size() \u003e 0; ctx[\u0027threat_intel\u0027] = joined; if (detail.size() \u003e 0) { ctx[\u0027threat_intel_detail\u0027] = detail; } if (ctx[\u0027_allow\u0027] != null) { def ar = ctx[\u0027_allow\u0027][\u0027allow_reason\u0027]; if (ar != null) { ctx[\u0027allow_reason\u0027] = ar; } def ow = ctx[\u0027_allow\u0027][\u0027owner\u0027]; if (ow != null) { ctx[\u0027allowlist_owner\u0027] = ow; } } if (ctx[\u0027_watch\u0027] != null) { def tt = ctx[\u0027_watch\u0027][\u0027threat_type\u0027]; if (tt != null) { ctx[\u0027watchlist_hit\u0027] = tt; ctx[\u0027threat_type\u0027] = tt; } def cf = ctx[\u0027_watch\u0027][\u0027ti_confidence\u0027]; if (cf != null) { ctx[\u0027ti_confidence\u0027] = cf; } def sr = ctx[\u0027_watch\u0027][\u0027ti_source\u0027]; if (sr != null) { ctx[\u0027ti_source\u0027] = sr; } }"
+                                      }
+                       },
+                       {
+                           "remove":  {
+                                          "field":  [
+                                                        "_allow",
+                                                        "_ti_tor",
+                                                        "_ti_c2",
+                                                        "_ti_sbl",
+                                                        "_watch"
+                                                    ],
+                                          "ignore_missing":  true
+                                      }
+                       }
+                   ]
+}

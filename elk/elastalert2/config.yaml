@@ -1,0 +1,35 @@
+# ElastAlert 2 config - SSHLogAnalysis ELK port.
+#
+# Mounted to /opt/elastalert/config.yaml (see docker-compose.elastalert2.yml). The
+# image entrypoint (run.sh) runs `elastalert-create-index` against writeback_index
+# first, so the state indices are created automatically - no manual step.
+#
+# The nine rules in rules/ mirror default/savedsearches.conf of the Splunk app.
+rules_folder: /opt/elastalert/rules
+
+# How often the Alerting loop wakes up. Splunk schedules range from */2 to 0 */6,
+# so a 1 minute loop is the safest common denominator (rules carry their own
+# `realert`, i.e. the Splunk suppression period).
+run_every:
+  minutes: 1
+
+# Default rolling window. Rules that need a longer one (Impossible Travel) set
+# their own `buffer_time`.
+buffer_time:
+  minutes: 15
+
+# Lab default: the Elasticsearch service in docker-compose.yml, no auth/TLS
+# (xpack.security is disabled on this lab cluster).
+es_host: elasticsearch
+es_port: 9200
+use_ssl: false
+
+# Alert + state indices, auto-created by the image entrypoint.
+writeback_index: elastalert_status
+
+# Drop alerts that were waiting longer than this when the loop falls behind.
+alert_time_limit:
+  days: 2
+
+# Keep dotted field names (source.ip, user.name, ...) intact in alert text.
+replace_dots_in_field_names: false

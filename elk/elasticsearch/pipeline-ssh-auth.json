@@ -1,0 +1,85 @@
+{
+    "description":  "SSHLogAnalysis (ELK port) - PARSE half: Linux sshd/PAM auth lines into ECS. Parity with the Splunk app\u0027s linux_secure sourcetype. deploy_elk.py concatenates this with pipeline-ssh-auth-enrich.json into the single ES pipeline ssh-auth-pipeline (enrich does not run inside a nested pipeline processor).",
+    "processors":  [
+                       {
+                           "grok":  {
+                                        "field":  "message",
+                                        "patterns":  [
+                                                         "^%{SYSLOGTIMESTAMP:system.auth.timestamp} %{SYSLOGHOST:host.hostname} %{DATA:process.name}(?:\\[%{POSINT:process.pid:int}\\])?: %{GREEDYDATA:_body}$"
+                                                     ],
+                                        "ignore_missing":  true,
+                                        "ignore_failure":  true
+                                    }
+                       },
+                       {
+                           "grok":  {
+                                        "field":  "_body",
+                                        "patterns":  [
+                                                         "^message repeated %{POSINT:event.repeat_count:int} times: \\[ %{GREEDYDATA:_repeated}\\]$"
+                                                     ],
+                                        "ignore_missing":  true,
+                                        "ignore_failure":  true,
+                                        "description":  "rsyslog collapses identical repeats into one line; unwrap it and parse the real message"
+                                    }
+                       },
+                       {
+                           "set":  {
+                                       "field":  "_body",
+                                       "copy_from":  "_repeated",
+                                       "override":  true,
+                                       "if":  "ctx._repeated != null"
+                                   }
+                       },
+                       {
+                           "grok":  {
+                                        "field":  "_body",
+                                        "patterns":  [
+                                                         "^(?\u003c_ssh_event\u003eFailed) password for invalid user %{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int} ssh2",
+                                                         "^(?\u003c_ssh_event\u003eFailed) password for (?:invalid user )?%{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int} ssh2",
+                                                         "^(?\u003c_ssh_event\u003eFailed) publickey for (?:invalid user )?%{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eAccepted) %{WORD:system.auth.ssh.method} for %{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int} ssh2",
+                                                         "^(?\u003c_ssh_event\u003eInvalid user) %{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^error: (?\u003c_ssh_event\u003emaximum authentication attempts exceeded) for (?:invalid user )?%{USERNAME:user.name} from %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eConnection closed) by (?:authenticating |invalid )?user %{USERNAME:user.name} %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eConnection closed) by %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eDisconnected from) (?:authenticating |invalid )?user %{USERNAME:user.name} %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eDisconnected from) %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?\u003c_ssh_event\u003eReceived disconnect) from %{IP:source.ip} port %{POSINT:source.port:int}:%{INT}",
+                                                         "^(?\u003c_ssh_event\u003eDisconnecting authenticating user) %{USERNAME:user.name} %{IP:source.ip} port %{POSINT:source.port:int}",
+                                                         "^(?:.*?: )?(?\u003c_ssh_event\u003eauthentication failure);.*rhost=%{IP:source.ip}%{SPACE}(?:user=%{USERNAME:user.name})?",
+                                                         "^(?\u003c_ssh_event\u003ePAM) %{INT} more authentication failures?;.*rhost=%{IP:source.ip}%{SPACE}(?:user=%{USERNAME:user.name})?",
+                                                         "^(?:.*?: )?(?\u003c_ssh_event\u003esession opened for user) %{USERNAME:user.name}",
+                                                         "^(?:.*?: )?(?\u003c_ssh_event\u003esession closed for user) %{USERNAME:user.name}"
+                                                     ],
+                                        "ignore_missing":  true,
+                                        "ignore_failure":  true
+                                    }
+                       },
+                       {
+                           "date":  {
+                                        "field":  "system.auth.timestamp",
+                                        "target_field":  "@timestamp",
+                                        "formats":  [
+                                                        "MMM  d HH:mm:ss",
+                                                        "MMM dd HH:mm:ss"
+                                                    ],
+                                        "timezone":  "UTC",
+                                        "if":  "ctx.system?.auth?.timestamp != null",
+                                        "on_failure":  [
+                                                           {
+                                                               "append":  {
+                                                                              "field":  "error.message",
+                                                                              "value":  "date parse failed for system.auth.timestamp"
+                                                                          }
+                                                           }
+                                                       ]
+                                    }
+                       },
+                       {
+                           "script":  {
+                                          "lang":  "painless",
+                                          "source":  "String ev = ctx[\u0027_ssh_event\u0027]; String action = null; String outcome = \u0027unknown\u0027; String sshEvent = null; if (ev != null) { if (ev == \u0027Failed\u0027 || ev == \u0027Invalid user\u0027 || ev == \u0027maximum authentication attempts exceeded\u0027) { action = \u0027ssh_login_failed\u0027; outcome = \u0027failure\u0027; sshEvent = (ev == \u0027Failed\u0027) ? \u0027Failed\u0027 : ((ev == \u0027Invalid user\u0027) ? \u0027Invalid\u0027 : \u0027error\u0027); } else if (ev == \u0027Accepted\u0027) { action = \u0027ssh_login\u0027; outcome = \u0027success\u0027; sshEvent = \u0027Accepted\u0027; } else if (ev == \u0027authentication failure\u0027 || ev == \u0027PAM\u0027) { action = \u0027ssh_pam_failure\u0027; outcome = \u0027failure\u0027; sshEvent = \u0027Failed\u0027; } else if (ev == \u0027session opened for user\u0027) { action = \u0027ssh_session_opened\u0027; outcome = \u0027success\u0027; } else if (ev == \u0027session closed for user\u0027) { action = \u0027ssh_session_closed\u0027; } else if (ev == \u0027Connection closed\u0027 || ev == \u0027Disconnected from\u0027 || ev == \u0027Received disconnect\u0027 || ev == \u0027Disconnecting authenticating user\u0027) { action = \u0027ssh_session_end\u0027; } } if (action != null) { def e = ctx[\u0027event\u0027] ?: [:]; e[\u0027action\u0027] = action; e[\u0027category\u0027] = [\u0027authentication\u0027]; e[\u0027dataset\u0027] = \u0027ssh.auth\u0027; e[\u0027module\u0027] = \u0027sshloganalysis\u0027; e[\u0027outcome\u0027] = outcome; e[\u0027kind\u0027] = \u0027event\u0027; ctx[\u0027event\u0027] = e; def sys = ctx[\u0027system\u0027] ?: [:]; def auth = sys[\u0027auth\u0027] ?: [:]; def ssh = auth[\u0027ssh\u0027] ?: [:]; if (sshEvent != null) { ssh[\u0027event\u0027] = sshEvent; } if (ctx[\u0027source\u0027] != null \u0026\u0026 ctx[\u0027source\u0027][\u0027ip\u0027] != null) { ssh[\u0027ip\u0027] = ctx[\u0027source\u0027][\u0027ip\u0027]; } if (sshEvent != null || ssh[\u0027ip\u0027] != null) { auth[\u0027ssh\u0027] = ssh; } if (ctx[\u0027user\u0027] != null \u0026\u0026 ctx[\u0027user\u0027][\u0027name\u0027] != null) { auth[\u0027user\u0027] = ctx[\u0027user\u0027][\u0027name\u0027]; } sys[\u0027auth\u0027] = auth; ctx[\u0027system\u0027] = sys; } ctx.remove(\u0027_body\u0027); ctx.remove(\u0027_ssh_event\u0027); if (ctx[\u0027_repeated\u0027] != null) { ctx.remove(\u0027_repeated\u0027); }"
+                                      }
+                       }
+                   ]
+}

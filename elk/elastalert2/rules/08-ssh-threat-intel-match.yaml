@@ -1,0 +1,57 @@
+# 08 - SSH - Threat Intel Match
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Failed password" OR "Accepted password")
+#   | `ssh_ti_enrich(src_ip)`
+#   | where threat_intel != ""
+#   schedule */5 * * * *  window -15m  severity 4  suppress src_ip 4h
+#
+# In the ELK port the enrichment already happened at ingest time: the enrich
+# processors (ssh-tor / ssh-c2 / ssh-spamhaus) tag the document with
+# threat_intel (TOR_EXIT | C2_BLOCKLIST | SPAMHAUS_DROP), threat_intel_match and
+# threat_intel_detail, so the rule is a plain `any` on the enriched field.
+#
+# The feed sources are the same CSVs the Splunk app uses (lookups/), refreshed by
+# bin/update_threat_intel.py; reload them with setup/deploy_elk.py.
+name: SSH - Threat Intel Match
+type: any
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+buffer_time:
+  minutes: 15
+
+query_key: source.ip
+realert:
+  hours: 4
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  - term:
+      threat_intel_match: true
+
+alert:
+  - debug
+alert_subject: "SSH threat intel match - {0} from {1}"
+alert_subject_args:
+  - threat_intel
+  - source.ip
+alert_text: |
+  SSH event from a known-bad source: {0} - {1} seen from {2} ({3}), account {4},
+  action {5}. Feed detail: {6}
+alert_text_args:
+  - threat_intel
+  - source.ip
+  - source.geo.country_iso_code
+  - source.geo.city_name
+  - user.name
+  - event.action
+  - threat_intel_detail
+
+severity: MEDIUM
+splunk_severity: 4
+detection: threat_intel_match
+mitre: T1078
+owner: soc

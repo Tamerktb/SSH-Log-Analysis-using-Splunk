@@ -1,0 +1,29 @@
+# Drop-in overlay for the lab's ELK stack (Elasticsearch + Kibana + Filebeat).
+#
+#   cd /home/ubuntu/elk
+#   docker-compose -f docker-compose.yml -f docker-compose.elastalert2.yml up -d
+#   docker-compose -f docker-compose.yml -f docker-compose.elastalert2.yml logs -f elastalert2
+#
+# (docker compose v2 syntax is identical minus the hyphen.)
+#
+# The overlay expects this tree next to the stack's docker-compose.yml:
+#   elastalert2/config.yaml
+#   elastalert2/ssh_ruletypes.py
+#   elastalert2/rules/*.yaml
+services:
+  elastalert2:
+    image: jertel/elastalert2:latest
+    container_name: elastalert2
+    restart: unless-stopped
+    # The image entrypoint (run.sh) runs `elastalert-create-index` against
+    # writeback_index first, so elastalert_status/elastalert/silence are created
+    # automatically on first start.
+    volumes:
+      - ./elastalert2/config.yaml:/opt/elastalert/config.yaml:ro
+      - ./elastalert2/rules:/opt/elastalert/rules:ro
+      # The custom rule types are imported by module name; loaders -> util.get_module
+      # appends os.getcwd() (the image WORKDIR is /opt/elastalert) to sys.path, so the
+      # module has to sit at the working directory, not merely somewhere on PYTHONPATH.
+      - ./elastalert2/ssh_ruletypes.py:/opt/elastalert/ssh_ruletypes.py:ro
+    depends_on:
+      - elasticsearch

@@ -1,0 +1,74 @@
+# 05 - SSH - Impossible Travel
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Accepted password" OR "Accepted publickey" OR "Accepted keyboard-interactive")
+#   | iplocation src_ip
+#   | sort 0 user_name +_time
+#   | streamstats current=f window=1 values(lat) as prev_lat values(lon) as prev_lon by user_name
+#   | eval hours = round((_time - prev_time)/3600, 2)
+#   | where distance_km >= 500 AND hours <= 1
+#   schedule 0 */2 * * *  window -2h  severity 4  suppress user 4h
+#
+# The distance has to be computed in Python (Elasticsearch cannot run haversine in a
+# query), so this uses the SshImpossibleTravel custom rule type, which keeps the last
+# accepted login per account and compares each new one against it.
+#
+# Requires the geoip processor in the ingest pipeline: source.geo.location is a
+# geo_point (GeoLite2 via the Elasticsearch GeoIP downloader).
+name: SSH - Impossible Travel
+type: ssh_ruletypes.SshImpossibleTravel
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+# Per-account state window (Splunk looks back 2h).
+timeframe:
+  hours: 2
+buffer_time:
+  hours: 2
+
+# Splunk: by user_name  ->  one travel history per account.
+query_key: user.name
+min_distance_km: 500
+max_hours: 1
+
+# geo_point field populated by the geoip processor.
+geo_field: source.geo.location
+state_ttl_hours: 24
+
+realert:
+  hours: 4
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  # `ssh_accepted_logins` only.
+  - term:
+      event.action: ssh_login
+  - exists:
+      field: source.geo.location
+
+alert:
+  - debug
+alert_subject: "SSH impossible travel - {0} ({1} km in {2} h)"
+alert_subject_args:
+  - user.name
+  - travel_km
+  - travel_hours
+alert_text: |
+  Impossible travel for account {0}: {1} km in {2} hours (~{3} km/h) between two
+  accepted SSH logins, most recent from {4}. Thresholds: {5}
+  This is either a compromised credential or a proxy/VPN login.
+alert_text_args:
+  - user.name
+  - travel_km
+  - travel_hours
+  - travel_kmh
+  - source.ip
+  - threshold
+
+severity: MEDIUM
+splunk_severity: 4
+detection: impossible_travel
+mitre: T1078
+owner: soc

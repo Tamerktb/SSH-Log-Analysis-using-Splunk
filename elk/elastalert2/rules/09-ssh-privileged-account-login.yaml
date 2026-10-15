@@ -1,0 +1,58 @@
+# 09 - SSH - Privileged Account Login
+#
+# Splunk search this mirrors (default/savedsearches.conf):
+#   index=linux_secure ("Accepted password" OR "Accepted publickey")
+#   | `ssh_allowlist_filter(src_ip)`
+#   | where user IN ("root","admin","administrator","ubuntu","ec2-user") OR match(user,"^svc_")
+#   schedule */10 * * * *  window -10m  severity 3 (HIGH)  suppress user 4h
+name: SSH - Privileged Account Login
+type: any
+
+index: filebeat-*
+timestamp_field: "@timestamp"
+
+buffer_time:
+  minutes: 10
+
+query_key: user.name
+realert:
+  hours: 4
+
+filter:
+  - term:
+      event.module: sshloganalysis
+  - term:
+      event.action: ssh_login
+  - bool:
+      must_not:
+        - exists:
+            field: allow_reason
+  # user IN (...) OR match(user, "^svc_")  ->  terms + prefix (prefix = anchored match)
+  - bool:
+      should:
+        - terms:
+            user.name: [root, admin, administrator, ubuntu, ec2-user]
+        - prefix:
+            user.name: svc_
+
+alert:
+  - debug
+alert_subject: "SSH privileged login - {0} from {1}"
+alert_subject_args:
+  - user.name
+  - source.ip
+alert_text: |
+  Privileged/automation account login: {0} authenticated from {1} ({2}) via {3}.
+  Threat intel: {4}
+alert_text_args:
+  - user.name
+  - source.ip
+  - source.geo.country_iso_code
+  - system.auth.ssh.method
+  - threat_intel
+
+severity: HIGH
+splunk_severity: 3
+detection: privileged_account_login
+mitre: T1078.003
+owner: soc
