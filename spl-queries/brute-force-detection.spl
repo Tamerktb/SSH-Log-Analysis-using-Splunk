@@ -1,0 +1,75 @@
+###############################################################################
+# SSH Brute Force Detection
+# MITRE ATT&CK: T1110 - Brute Force
+#
+# Assumes: index=linux_secure sourcetype=linux_secure
+# Geo enrichment uses the BUILT-IN `iplocation` command (no external lookup /
+# no MMDB file required). Threat-intel uses the live feeds pulled by
+# scripts/update_threat_intel.py via the `ssh_ti_enrich` macro.
+###############################################################################
+
+# === Basic Brute Force Detection ===
+# 5+ failed logins from the same source IP within 5 minutes.
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| bin _time span=5m
+| stats count AS failed_attempts BY src_ip, _time
+| where failed_attempts >= 5
+| sort - failed_attempts
+| table _time, src_ip, failed_attempts
+
+# === Advanced Brute Force with Geo + Threat-Intel Enrichment ===
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| bin _time span=5m
+| stats count AS failed_attempts dc(target_user) AS unique_users BY src_ip, _time
+| where failed_attempts >= 5
+| iplocation src_ip
+| `ssh_ti_enrich(src_ip)`
+| eval threat_score = case(
+    failed_attempts >= 50, "CRITICAL",
+    failed_attempts >= 20, "HIGH",
+    failed_attempts >= 10, "MEDIUM",
+    true(), "LOW"
+  )
+| eval known_threat = if(isnotnull(threat_type), "YES", "NO")
+| sort - failed_attempts
+| table _time, src_ip, failed_attempts, unique_users, City, Country,
+        threat_score, known_threat, ti_source
+
+# === Targeted Account Brute Force ===
+# Brute force aimed at high-value accounts.
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| where lower(target_user) IN ("root", "admin", "administrator", "ubuntu", "ec2-user")
+| bin _time span=5m
+| stats count AS failed_attempts BY src_ip, target_user, _time
+| where failed_attempts >= 3
+| eval severity = "HIGH"
+| sort - failed_attempts
+| table _time, src_ip, target_user, failed_attempts, severity
+
+# === Distributed Brute Force (many users, one source IP) ===
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| bin _time span=10m
+| stats dc(target_user) AS unique_users count AS total_attempts BY src_ip, _time
+| where unique_users >= 5 AND total_attempts >= 10
+| eval attack_type = "distributed_brute_force"
+| sort - unique_users
+| table _time, src_ip, unique_users, total_attempts, attack_type
+
+# === Successful Brute Force (break-in detection) ===
+# A successful login from a source that ALSO produced many failures.
+# NOTE: the previous version used eventstats BEFORE the "Accepted password"
+# filter, which counts the wrong population. This version classifies each
+# event with eval and aggregates in one pass.
+index=linux_secure sourcetype=linux_secure ("Failed password" OR "Accepted password")
+| rex field=_raw "(?<outcome>Failed password|Accepted password) for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| eval is_fail    = if(outcome == "Failed password", 1, 0)
+| eval is_success = if(outcome == "Accepted password", 1, 0)
+| stats sum(is_fail) AS failed_count sum(is_success) AS success_count BY src_ip, target_user
+| where failed_count >= 5 AND success_count > 0
+| eval alert = "POSSIBLE_BREACH", risk_score = failed_count * 10
+| sort - risk_score
+| table src_ip, target_user, failed_count, success_count, risk_score, alert

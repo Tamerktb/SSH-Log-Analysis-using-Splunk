@@ -1,0 +1,35 @@
+# CIM / data model searches (Authentication)
+# Requires the CIM add-on and the app's event types + tags (eventtypes.conf /
+# tags.conf), which mark action::success / action::failure and app::ssh.
+#
+# tstats reads the accelerated Authentication data model instead of raw events,
+# so it scales to very large environments. Enable data model acceleration for
+# Authentication first (Settings > Data models > Authentication > Edit >
+# Acceleration).
+
+# --- Failed authentication by source (top talkers) --------------------------
+| tstats summariesonly=true count from datamodel=Authentication.Authentication \
+    where Authentication.action=failure \
+    by Authentication.src, Authentication.user \
+| sort - count
+
+# --- Success-after-failure per user (possible credential compromise) --------
+| tstats summariesonly=true count from datamodel=Authentication.Authentication \
+    where Authentication.action=success OR Authentication.action=failure \
+    by Authentication.user, Authentication.action, Authentication.src \
+| chart count over Authentication.user by Authentication.action
+| where failure > 5 AND success > 0
+
+# --- Authentication volume trend, 5-minute buckets --------------------------
+| tstats summariesonly=true count from datamodel=Authentication.Authentication \
+    where Authentication.app=ssh \
+    by _time span=5m, Authentication.action
+| timechart span=5m sum(count) by Authentication.action
+
+# --- Distinct sources per user (spray / shared account detection) -----------
+| tstats summariesonly=true dc(Authentication.src) as srcs count \
+    from datamodel=Authentication.Authentication \
+    where Authentication.action=failure \
+    by Authentication.user
+| where srcs > 10
+| sort - srcs

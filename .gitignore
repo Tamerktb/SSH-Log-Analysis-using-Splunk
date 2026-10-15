@@ -1,0 +1,17 @@
+# Generated sample logs
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local secrets / Splunk exports
+*.local.conf
+local/

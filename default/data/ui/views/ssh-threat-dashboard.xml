@@ -1,0 +1,164 @@
+<form>
+  <label>SSH Threat Detection Dashboard</label>
+  <description>Failed-login, live threat-intel and anomaly monitoring for SSH authentication.</description>
+  <fieldset submitButton="false">
+    <input type="time" token="time_range">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>SSH Attack Activity (auth events over time)</title>
+      <chart>
+        <search>
+          <query>`ssh_events` ("Failed password" OR "Accepted password")
+| rex field=_raw "(?&lt;outcome&gt;Failed password|Accepted password) for (?:invalid user )?(?&lt;target_user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| timechart span=1h count by outcome</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleY.text">Events</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Top Brute Force Sources</title>
+      <chart>
+        <search>
+          <query>`ssh_failed_logins`
+| rex field=_raw "Failed password for (?:invalid user )?(?&lt;target_user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| stats count by src_ip
+| sort - count
+| head 20</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.axisTitleX.text">Source IP</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Geographic Threat Map</title>
+      <map>
+        <search>
+          <query>`ssh_failed_logins`
+| rex field=_raw "Failed password for (?:invalid user )?(?&lt;target_user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| iplocation src_ip
+| where isnotnull(lat) AND isnotnull(lon)
+| geostats latfield=lat longfield=lon count</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="mapping.mapType">marker</option>
+      </map>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Targeted Accounts (Top 10)</title>
+      <chart>
+        <search>
+          <query>`ssh_failed_logins`
+| rex field=_raw "Failed password for (?:invalid user )?(?&lt;target_user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| stats count by target_user
+| sort - count
+| head 10</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Recent High-Volume Sources</title>
+      <table>
+        <search>
+          <query>`ssh_failed_logins`
+| rex field=_raw "Failed password for (?:invalid user )?(?&lt;target_user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| bin _time span=5m
+| stats count by src_ip, target_user, _time
+| where count &gt;= 5
+| iplocation src_ip
+| eval threat_severity = case(count &gt;= 20, "CRITICAL", count &gt;= 10, "HIGH", true(), "MEDIUM")
+| sort - _time
+| table _time, src_ip, target_user, count, threat_severity, City, Country</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+        <option name="rowNumbers">true</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Threat-Intel Matches (Tor / abuse.ch C2 / Spamhaus DROP)</title>
+      <table>
+        <search>
+          <query>`ssh_events` ("Accepted password" OR "Failed password" OR "Invalid user")
+| rex field=_raw "(?&lt;outcome&gt;Accepted|Failed) \S+(?: for)?(?: invalid user)? (?&lt;user&gt;\S+) from (?&lt;src_ip&gt;\S+)"
+| `ssh_ti_enrich(src_ip)`
+| where threat_intel != ""
+| iplocation src_ip
+| stats count values(user) as users values(threat_intel) as intel by src_ip, City, Country
+| sort - count</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+        <option name="rowNumbers">true</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Impossible Travel Events</title>
+      <table>
+        <search>
+          <query>`ssh_accepted_logins`
+| rex field=_raw "Accepted \S+ for (?&lt;user&gt;\S+) from (?&lt;src&gt;\S+)"
+| iplocation src
+| where isnotnull(lat) AND isnotnull(lon)
+| sort 0 user +_time
+| streamstats current=f window=1 last(lat) as prev_lat last(lon) as prev_lon last(_time) as prev_time by user
+| where isnotnull(prev_lat)
+| eval hours = round((_time - prev_time) / 3600, 2)
+| eval distance_km = round(6371 * 2 * asin(sqrt(pow(sin(((lat - prev_lat) * pi() / 180) / 2), 2) + cos(prev_lat * pi() / 180) * cos(lat * pi() / 180) * pow(sin(((lon - prev_lon) * pi() / 180) / 2), 2))), 1)
+| eval speed_kmh = if(hours &gt; 0, round(distance_km / hours, 1), null())
+| where distance_km &gt; 500 AND (isnull(hours) OR speed_kmh &gt; 900)
+| table _time, user, src, City, Country, distance_km, hours, speed_kmh</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Account Policy Violations</title>
+      <table>
+        <search>
+          <query>`ssh_accepted_logins`
+| rex field=_raw "Accepted \S+ for (?&lt;user&gt;\S+) from (?&lt;src&gt;\S+)"
+| lookup ssh_policy_violations.csv user OUTPUT policy_violation, severity AS policy_severity, description, remediation
+| where isnotnull(policy_violation)
+| table _time, user, src, policy_violation, policy_severity, remediation</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="wrap">true</option>
+        <option name="rowNumbers">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

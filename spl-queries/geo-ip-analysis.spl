@@ -1,0 +1,83 @@
+###############################################################################
+# SSH Geo-IP Threat Intelligence
+#
+# Assumes: index=linux_secure sourcetype=linux_secure
+# Geo enrichment uses the BUILT-IN `iplocation` command (ships with Splunk,
+# MaxMind-backed). No external MMDB upload or custom lookup is required.
+###############################################################################
+
+# === Geo-IP Enriched Login Map ===
+# Feed the result to a <map> panel (geostats is the map-ready output).
+index=linux_secure sourcetype=linux_secure
+| rex field=_raw "(?<outcome>Accepted|Failed) password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| iplocation src_ip
+| where isnotnull(lat) AND isnotnull(lon)
+| geostats latfield=lat longfield=lon count BY outcome
+
+# === Tor / Anonymising Network Detection ===
+# Uses the live Tor exit list in lookups/tor_exit_nodes.csv, refreshed by
+# scripts/update_threat_intel.py (source: check.torproject.org bulk exit list).
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex field=_raw "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| lookup tor_exit_nodes.csv src_ip OUTPUT tor_node_source
+| where isnotnull(tor_node_source)
+| iplocation src_ip
+| eval threat_indicator = "TOR_EXIT_NODE", risk_score = 70
+| sort - _time
+| table _time, target_user, src_ip, City, Country, threat_indicator, risk_score
+
+# === High-Risk Country Detection ===
+# Geo-based risk scoring. Tune the country list to your organisation's policy.
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex field=_raw "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| iplocation src_ip
+| where lower(Country) IN ("russia", "china", "north korea", "iran", "nigeria")
+| eval threat_intel_source = "geoip_high_risk_country", risk_score = 60
+| stats count min(_time) AS first_seen BY target_user, src_ip, Country, City, risk_score, threat_intel_source
+| sort - count
+| table target_user, src_ip, Country, City, count, risk_score, threat_intel_source
+
+# === Threat Intelligence Feed Correlation ===
+# Cross-reference SSH source IPs against the live feeds. `ssh_ti_enrich` checks
+# Tor exits, abuse.ch C2 and Spamhaus DROP in one call; the internal watchlist
+# (known_attackers.csv) is checked separately.
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| stats count AS fail_count BY src_ip
+| `ssh_ti_enrich(src_ip)`
+| `ssh_watchlist_enrich(src_ip)`
+| where threat_intel != "" OR watchlist_hit != ""
+| iplocation src_ip
+| eval confidence = case(
+    fail_count >= 100, "VERY_HIGH",
+    fail_count >= 50, "HIGH",
+    fail_count >= 20, "MEDIUM",
+    true(), "LOW"
+  )
+| sort - fail_count
+| table src_ip, fail_count, City, Country, confidence, threat_type, ti_source
+
+# === Geographic Anomaly Detection ===
+# A user logging in from a country they have not used before (per window).
+index=linux_secure sourcetype=linux_secure "Accepted password"
+| rex field=_raw "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
+| iplocation src_ip
+| where isnotnull(Country)
+| sort 0 target_user +_time
+| streamstats current=f values(Country) AS known_countries BY target_user
+| eval is_new_country = if(isnull(known_countries), "true",
+                           if(mvcount(mvfilter(known_countries == Country)) == 0, "true", "false"))
+| where is_new_country == "true"
+| stats min(_time) AS first_seen max(_time) AS last_seen
+        values(Country) AS new_countries BY target_user
+| eval anomaly_type = "geo_anomaly"
+| table target_user, first_seen, last_seen, new_countries, anomaly_type
+
+# === Hourly Geo-IP Heatmap ===
+index=linux_secure sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (?:invalid user )?(?<target_user>\S+) from (?<src_ip>\S+)"
+| iplocation src_ip
+| eval hour = strftime(_time, "%H")
+| stats count BY Country, hour
+| sort Country, hour
+| table Country, hour, count

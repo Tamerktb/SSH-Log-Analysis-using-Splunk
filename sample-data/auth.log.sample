@@ -1,0 +1,52 @@
+Jun 10 08:15:01 webserver sshd[12345]: Accepted password for admin from 192.168.1.100 port 54321 ssh2
+Jun 10 08:15:02 webserver sshd[12346]: Accepted password for admin from 10.0.0.50 port 54322 ssh2
+Jun 10 08:15:30 webserver sshd[12347]: Failed password for root from 203.0.113.50 port 45678 ssh2
+Jun 10 08:15:31 webserver sshd[12348]: Failed password for root from 203.0.113.50 port 45679 ssh2
+Jun 10 08:15:32 webserver sshd[12349]: Failed password for root from 203.0.113.50 port 45680 ssh2
+Jun 10 08:15:33 webserver sshd[12350]: Failed password for root from 203.0.113.50 port 45681 ssh2
+Jun 10 08:15:34 webserver sshd[12351]: Failed password for root from 203.0.113.50 port 45682 ssh2
+Jun 10 08:15:35 webserver sshd[12352]: Failed password for root from 203.0.113.50 port 45683 ssh2
+Jun 10 08:15:36 webserver sshd[12353]: Failed password for root from 203.0.113.50 port 45684 ssh2
+Jun 10 08:15:37 webserver sshd[12354]: Failed password for root from 203.0.113.50 port 45685 ssh2
+Jun 10 08:15:38 webserver sshd[12355]: Failed password for root from 203.0.113.50 port 45686 ssh2
+Jun 10 08:15:39 webserver sshd[12356]: Failed password for root from 203.0.113.50 port 45687 ssh2
+Jun 10 08:16:00 webserver sshd[12357]: Accepted password for root from 203.0.113.50 port 45688 ssh2
+Jun 10 08:20:01 webserver sshd[12358]: Failed password for admin from 198.51.100.20 port 12345 ssh2
+Jun 10 08:20:02 webserver sshd[12359]: Failed password for admin from 198.51.100.20 port 12346 ssh2
+Jun 10 08:20:03 webserver sshd[12360]: Failed password for svc_backup from 198.51.100.20 port 12347 ssh2
+Jun 10 08:20:04 webserver sshd[12361]: Failed password for oracle from 198.51.100.20 port 12348 ssh2
+Jun 10 08:20:05 webserver sshd[12362]: Failed password for deploy from 198.51.100.20 port 12349 ssh2
+Jun 10 08:20:06 webserver sshd[12363]: Failed password for test_user from 198.51.100.20 port 12350 ssh2
+Jun 10 08:20:07 webserver sshd[12364]: Failed password for ansible from 198.51.100.20 port 12351 ssh2
+Jun 10 08:20:08 webserver sshd[12365]: Failed password for nagios from 198.51.100.20 port 12352 ssh2
+Jun 10 08:20:09 webserver sshd[12366]: Failed password for docker from 198.51.100.20 port 12353 ssh2
+Jun 10 08:20:10 webserver sshd[12367]: Failed password for guest from 198.51.100.20 port 12354 ssh2
+Jun 10 08:20:11 webserver sshd[12368]: Failed password for admin from 198.51.100.20 port 12355 ssh2
+Jun 10 08:20:12 webserver sshd[12369]: Failed password for admin from 198.51.100.20 port 12356 ssh2
+Jun 10 08:20:13 webserver sshd[12370]: Failed password for admin from 198.51.100.20 port 12357 ssh2
+Jun 10 08:20:14 webserver sshd[12371]: Failed password for admin from 198.51.100.20 port 12358 ssh2
+Jun 10 08:20:15 webserver sshd[12372]: Failed password for admin from 198.51.100.20 port 12359 ssh2
+Jun 10 08:25:00 webserver sshd[12373]: Invalid user test from 51.15.200.100 port 33333 ssh2
+Jun 10 08:25:01 webserver sshd[12374]: Failed password for invalid user test from 51.15.200.100 port 33334 ssh2
+Jun 10 08:25:02 webserver sshd[12375]: Invalid user ubuntu from 51.15.200.100 port 33335 ssh2
+Jun 10 08:25:03 webserver sshd[12376]: Failed password for invalid user ubuntu from 51.15.200.100 port 33336 ssh2
+Jun 10 08:25:04 webserver sshd[12377]: Invalid user admin from 51.15.200.100 port 33337 ssh2
+Jun 10 08:25:05 webserver sshd[12378]: Failed password for invalid user admin from 51.15.200.100 port 33338 ssh2
+Jun 10 08:30:00 webserver sshd[12379]: Accepted password for jdoe from 192.168.1.101 port 44444 ssh2
+Jun 10 08:30:15 webserver sshd[12380]: Accepted password for jdoe from 192.168.1.102 port 44445 ssh2
+Jun 10 08:30:30 webserver sshd[12381]: Accepted password for jdoe from 192.168.1.103 port 44446 ssh2
+Jun 10 08:31:00 webserver sshd[12382]: Accepted password for jdoe from 192.168.1.104 port 44447 ssh2
+Jun 10 08:35:00 webserver sshd[12383]: Accepted publickey for svc_backup from 10.0.0.5 port 55555 ssh2
+Jun 10 08:35:01 webserver sshd[12384]: Accepted publickey for svc_backup from 10.0.0.5 port 55556 ssh2
+Jun 10 08:35:02 webserver sshd[12385]: Accepted publickey for svc_backup from 10.0.0.5 port 55557 ssh2
+Jun 10 09:00:00 webserver sshd[12386]: Accepted password for devops from 10.0.0.100 port 60000 ssh2
+Jun 10 09:15:00 webserver sshd[12387]: Disconnected from authenticating user root 203.0.113.50 port 45689 [preauth]
+Jun 10 09:30:00 webserver sshd[12388]: Connection closed by authenticating user admin 198.51.100.20 port 12360 [preauth]
+Jun 10 10:00:00 webserver sshd[12389]: Failed password for root from 185.220.101.1 port 70001 ssh2
+Jun 10 10:00:01 webserver sshd[12390]: Failed password for root from 185.220.101.1 port 70002 ssh2
+Jun 10 10:00:02 webserver sshd[12391]: Failed password for root from 185.220.101.1 port 70003 ssh2
+Jun 10 10:00:03 webserver sshd[12392]: Failed password for root from 185.220.101.1 port 70004 ssh2
+Jun 10 10:00:04 webserver sshd[12393]: Failed password for root from 185.220.101.1 port 70005 ssh2
+Jun 10 10:00:05 webserver sshd[12394]: Failed password for root from 185.220.101.1 port 70006 ssh2
+Jun 10 10:00:06 webserver sshd[12395]: Failed password for root from 185.220.101.1 port 70007 ssh2
+Jun 10 10:00:07 webserver sshd[12396]: Failed password for root from 185.220.101.1 port 70008 ssh2

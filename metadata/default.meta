@@ -1,0 +1,30 @@
+###############################################################################
+# Object-level permissions for the SSH Log Analysis app (default.meta).
+###############################################################################
+
+[]
+access = read : [ * ], write : [ admin, power ]
+
+[views]
+access = read : [ * ], write : [ admin, power ]
+
+[views/ssh-threat-dashboard]
+access = read : [ * ], write : [ admin, power ]
+
+[views/ssh-monitoring-dashboard]
+access = read : [ * ], write : [ admin, power ]
+
+[savedsearches]
+access = read : [ * ], write : [ admin, power ]
+
+[macros]
+access = read : [ * ], write : [ admin, power ]
+
+[lookups]
+access = read : [ * ], write : [ admin, power ]
+
+[eventtypes]
+access = read : [ * ], write : [ admin, power ]
+
+[tags]
+access = read : [ * ], write : [ admin, power ]
