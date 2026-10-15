@@ -5,7 +5,7 @@
 # Assumes: index=linux_secure sourcetype=linux_secure
 # Geo enrichment uses the BUILT-IN `iplocation` command (no external lookup /
 # no MMDB file required). Threat-intel uses the live feeds pulled by
-# scripts/update_threat_intel.py via the `ssh_ti_enrich` macro.
+# bin/update_threat_intel.py via the `ssh_ti_enrich` macro.
 ###############################################################################
 
 # === Basic Brute Force Detection ===

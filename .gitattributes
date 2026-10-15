@@ -1,0 +1,40 @@
+# Normalize line endings to LF in the repository AND on checkout.
+#
+# This matters for Splunk: .conf / .meta / .spl files are parsed by Splunk and
+# CRLF endings break stanza parsing, multi-line values, and searches. With
+# core.autocrlf=true (the default on Windows) git would otherwise check these
+# files out as CRLF, so a fresh Windows clone would ship broken config.
+# Verified: `git ls-files --eol` shows i/lf w/lf for every text file.
+* text=auto eol=lf
+
+# Splunk configuration and search files: always LF, never merged.
+*.conf  text eol=lf
+*.meta  text eol=lf
+*.spl   text eol=lf
+*.xml   text eol=lf
+*.csv   text eol=lf
+
+# Scripts and docs: always LF.
+*.py    text eol=lf
+*.sh    text eol=lf
+*.md    text eol=lf
+
+# Sample logs: LF so Splunk's line breaker sees Unix line endings.
+*.sample text eol=lf
+*.log    text eol=lf
+
+# Binaries - never text-convert or diff.
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.gif  binary
+*.ico  binary
+*.zip  binary
+*.gz   binary
+*.mmdb binary
+*.pdf  binary
+
+# Generated artifacts are pinned so a re-run is always reproducible.
+lookups/tor_exit_nodes.csv  -diff
+lookups/c2_blocklist.csv    -diff
+lookups/spamhaus_drop.csv   -diff

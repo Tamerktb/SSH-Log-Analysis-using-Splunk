@@ -1,5 +1,6 @@
-# Generated sample logs
-output/
+# Generated sample logs (produced by tools/generate-sample-logs.py).
+# Checked-in fixtures live alongside them as sample-data/*.sample.
+sample-data/generated/
 
 # Python
 __pycache__/

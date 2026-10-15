@@ -41,7 +41,7 @@ mv SSH-Log-Analysis-using-Splunk $SPLUNK_HOME/etc/apps/SSHLogAnalysis
 chown -R splunk:splunk $SPLUNK_HOME/etc/apps/SSHLogAnalysis
 
 # Refresh live threat-intel feeds into the app's lookups
-python3 $SPLUNK_HOME/etc/apps/SSHLogAnalysis/scripts/update_threat_intel.py \
+python3 $SPLUNK_HOME/etc/apps/SSHLogAnalysis/bin/update_threat_intel.py \
         --out $SPLUNK_HOME/etc/apps/SSHLogAnalysis/lookups
 
 $SPLUNK_HOME/bin/splunk restart -auth admin:<password>
@@ -74,19 +74,19 @@ Two supported ways — pick one:
 `default/inputs.conf`:
 
 ```
-[script://$SPLUNK_HOME/etc/apps/SSHLogAnalysis/scripts/update_threat_intel.py]
+[script://./bin/update_threat_intel.py]
 disabled = 0
 interval = 86400
 sourcetype = ssh_threat_intel_update
 index = _internal
 ```
 
-**B. OS cron.** `0 3 * * *  python3 .../scripts/update_threat_intel.py`.
+**B. OS cron.** `0 3 * * *  python3 .../bin/update_threat_intel.py`.
 
 Test any time without writing files:
 
 ```bash
-python3 scripts/update_threat_intel.py --dry-run
+python3 bin/update_threat_intel.py --dry-run
 ```
 
 ## 5. Lookup permissions
@@ -106,8 +106,8 @@ The app tags events for the **Authentication** data model. To run the
 ## 7. Verify
 
 ```bash
-python3 scripts/validate_repo.py            # 12 static checks
-python3 scripts/update_threat_intel.py --dry-run
+python3 tools/validate_repo.py              # 15 static checks
+python3 bin/update_threat_intel.py --dry-run
 ```
 
 In Splunk:

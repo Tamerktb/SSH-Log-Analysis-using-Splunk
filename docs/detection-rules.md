@@ -39,7 +39,7 @@ Geo uses the **built-in `iplocation`** command — no external lookup:
 
 ## Threat intel
 
-`scripts/update_threat_intel.py` writes three live feeds; `` `ssh_ti_enrich` ``
+`bin/update_threat_intel.py` writes three live feeds; `` `ssh_ti_enrich` ``
 checks all three and sets `threat_intel`:
 
 ```spl

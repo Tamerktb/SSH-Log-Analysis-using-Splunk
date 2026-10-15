@@ -28,7 +28,7 @@ Structural checks (the app must deploy as a real Splunk app):
       [<name>(<argname>)] shorthand fails at search time with "macro cannot be
       found". Also flags definitions using $placeholders$ with no `args` line.
 
-Run:  python scripts/validate_repo.py
+Run:  python tools/validate_repo.py
 Exit: 0 = all checks pass, 1 = at least one failure.
 """
 

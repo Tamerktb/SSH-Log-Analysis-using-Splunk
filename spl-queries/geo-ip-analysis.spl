@@ -16,7 +16,7 @@ index=linux_secure sourcetype=linux_secure
 
 # === Tor / Anonymising Network Detection ===
 # Uses the live Tor exit list in lookups/tor_exit_nodes.csv, refreshed by
-# scripts/update_threat_intel.py (source: check.torproject.org bulk exit list).
+# bin/update_threat_intel.py (source: check.torproject.org bulk exit list).
 index=linux_secure sourcetype=linux_secure "Accepted password"
 | rex field=_raw "Accepted password for (?<target_user>\S+) from (?<src_ip>\S+)"
 | lookup tor_exit_nodes.csv src_ip OUTPUT tor_node_source

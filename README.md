@@ -5,7 +5,7 @@ field mapping, scheduled correlation searches, dashboards, and **live
 threat-intel feeds**. Built to run against real `sshd` logs on real Splunk
 (Either Splunk Enterprise 9.x / 10.x or Splunk Cloud with app upload).
 
-![Architecture](https://github.com/Tamerktb/SSH-Log-Analysis-using-Splunk/blob/main/df3ul9s9oiv.jpg?raw=true)
+![Architecture](architecture.jpg)
 
 ## What it detects
 
@@ -23,7 +23,7 @@ threat-intel feeds**. Built to run against real `sshd` logs on real Splunk
 
 ## Live threat-intel feeds (not sample data)
 
-`scripts/update_threat_intel.py` pulls real, public feeds straight into the
+`bin/update_threat_intel.py` pulls real, public feeds straight into the
 app's lookups:
 
 | Feed | Source | Lookup |
@@ -41,6 +41,8 @@ ranges are matched with `match_type = CIDR(src_ip)`; the IP feeds match exactly.
 
 ```
 SSHLogAnalysis/
+├── .gitattributes              # forces LF so Splunk conf is never CRLF on clone
+├── architecture.jpg            # diagram shown above
 ├── default/
 │   ├── app.conf                # app manifest (id: SSHLogAnalysis)
 │   ├── inputs.conf             # monitor auth.log / secure on the forwarder
@@ -51,14 +53,18 @@ SSHLogAnalysis/
 │   ├── macros.conf             # base searches + enrichment macros
 │   ├── savedsearches.conf      # 9 scheduled correlation searches
 │   └── data/ui/views/          # ssh-threat-dashboard.xml, ssh-monitoring-dashboard.xml
+├── bin/
+│   └── update_threat_intel.py  # refresh the live feeds (Splunk scripted input)
 ├── lookups/                    # CSV lookups (feeds + allowlist + watchlist)
 ├── metadata/default.meta       # object permissions
 ├── spl-queries/                # ad-hoc SPL triage library (.spl)
-├── sample-data/                # test fixtures for validating detections
-├── scripts/
-│   ├── update_threat_intel.py  # refresh the live feeds
-│   ├── generate-sample-logs.py # generate test logs (fixtures)
-│   └── validate_repo.py        # 12 static deployment checks
+├── sample-data/                # ALL sample logs live here:
+│   ├── auth.log.sample         #   checked-in fixture (documentation-range IPs)
+│   ├── secure.log.sample       #   RHEL/CentOS flavoured fixture
+│   └── generated/              #   bulk fixtures, gitignored (tools/generate-sample-logs.py)
+├── tools/                      # developer tooling (not shipped to Splunk)
+│   ├── generate-sample-logs.py # generate bulk test logs
+│   └── validate_repo.py        # 15 static deployment checks
 └── docs/
 ```
 
@@ -73,7 +79,7 @@ git clone https://github.com/Tamerktb/SSH-Log-Analysis-using-Splunk.git
 mv SSH-Log-Analysis-using-Splunk $SPLUNK_HOME/etc/apps/SSHLogAnalysis
 
 # 2. Refresh the live threat-intel feeds
-python $SPLUNK_HOME/etc/apps/SSHLogAnalysis/scripts/update_threat_intel.py \
+python $SPLUNK_HOME/etc/apps/SSHLogAnalysis/bin/update_threat_intel.py \
        --out $SPLUNK_HOME/etc/apps/SSHLogAnalysis/lookups
 
 # 3. Restart (or Debug/Refresh) to load the app
@@ -108,9 +114,9 @@ ES work without extra config:
 input:
 
 ```bash
-python scripts/update_threat_intel.py           # all feeds
-python scripts/update_threat_intel.py --only tor,c2
-python scripts/update_threat_intel.py --dry-run # fetch + count, do not write
+python bin/update_threat_intel.py           # all feeds
+python bin/update_threat_intel.py --only tor,c2
+python bin/update_threat_intel.py --dry-run # fetch + count, do not write
 ```
 
 **Tune false positives.** Add internal / VPN / CI sources to
@@ -128,8 +134,8 @@ search in `default/savedsearches.conf`.
 ## Verify
 
 ```bash
-python scripts/validate_repo.py    # 12 deployment checks -> "all checks PASSED"
-python scripts/update_threat_intel.py --dry-run
+python tools/validate_repo.py     # 15 deployment checks -> "all checks PASSED"
+python bin/update_threat_intel.py --dry-run
 ```
 
 In Splunk, after onboarding logs:
@@ -140,6 +146,21 @@ In Splunk, after onboarding logs:
 - [ ] Threat + monitoring dashboards render (map, tables, impossible travel)
 - [ ] `SSH - Threat Intel Match` fires against a Tor exit IP from the feed
 - [ ] No `lookup` errors in the job status bar
+
+To exercise every rule without a live fleet, generate and onboard the bulk
+fixtures:
+
+```bash
+python tools/generate-sample-logs.py     # 24h of realistic auth.log + secure.log
+splunk add oneshot sample-data/generated/auth.log \
+       -index linux_secure -sourcetype linux_secure
+```
+
+The generator emits **UTC** timestamps (matching the app's `TZ = UTC`) and
+includes a pattern for every rule — brute force, credential stuffing,
+distributed brute force, successful brute force, impossible travel, off-hours,
+dormant account, privileged login and threat-intel hits — so a fresh batch
+fires all 9 saved searches inside their scheduled windows.
 
 ## Ad-hoc triage library
 

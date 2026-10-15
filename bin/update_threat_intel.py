@@ -13,10 +13,14 @@ Outputs (columns match the lookup definitions in default/transforms.conf):
   lookups/c2_blocklist.csv     src_ip,c2_source,last_seen
   lookups/spamhaus_drop.csv    src_ip,sbl_reference,last_seen
 
-Usage:
-  python scripts/update_threat_intel.py
-  python scripts/update_threat_intel.py --only tor,c2
-  python scripts/update_threat_intel.py --dry-run
+Usage (from the repo root):
+  python bin/update_threat_intel.py
+  python bin/update_threat_intel.py --only tor,c2
+  python bin/update_threat_intel.py --dry-run
+
+This script is bundled in the app's bin/ directory, which is the location
+Splunk expects for scripts it executes (see the scripted-input stanza in
+default/inputs.conf).
 """
 
 import argparse
