@@ -66,6 +66,59 @@ crcSalt = <SOURCE>
 
 `crcSalt = <SOURCE>` prevents log rotation from dropping data.
 
+### Alternative: rsyslog → Splunk (no Universal Forwarder)
+
+If you cannot install a forwarder — or want a fast lab pipeline — have the
+host's **rsyslog** ship the `auth`/`authpriv` facilities straight to a Splunk
+TCP input. This is a real pattern, not a toy: over TCP it is lossless, and it
+needs no agent on the host.
+
+**On the indexer** — `$SPLUNK_HOME/etc/system/local/inputs.conf`. Receiver
+config goes in `system/local`, **not** in the app: the app is also deployed to
+forwarders, where a listening input would be wrong.
+
+```
+[tcp://514]
+connection_host = ip
+index = linux_secure
+sourcetype = linux_secure
+```
+
+Open the port (Linux: `firewall-cmd --add-port=514/tcp --permanent` or
+`ufw allow 514/tcp`; Windows: an inbound rule for TCP 514) and restart Splunk.
+`connection_host = ip` sets `host` to the sender's IP; the app's
+`EXTRACT-msg_host` still lifts the hostname out of the line into `msg_host`.
+
+**On each Linux source host** — `/etc/rsyslog.d/60-splunk-forward.conf`:
+
+```
+template(name="SplunkAuth" type="string" string="%TIMESTAMP% %HOSTNAME% %syslogtag%%msg%\n")
+
+auth,authpriv.* action(type="omfwd"
+                       target="<indexer-ip>"
+                       port="514"
+                       protocol="tcp"
+                       template="SplunkAuth"
+                       action.resumeRetryCount="-1"
+                       queue.type="linkedList"
+                       queue.size="10000")
+```
+
+Reload with `systemctl restart rsyslog`; validate the syntax with
+`rsyslogd -N1`. The template reproduces the plain `auth.log` line format, so
+`TZ`/sourcetype handling and the SSH field extractions apply unchanged.
+
+> **Two caveats.** (1) `%TIMESTAMP%` is the *host's* local time — if the host
+> is not on UTC, set `TZ` in `default/props.conf` to that zone, or timestamps
+> will be skewed. (2) rsyslog collapses identical repeats into a
+> `message repeated N times:` line, which can hide volume from any counting
+> search. A forwarder does not do this.
+
+**Verified end to end:** a 20-password `hydra` run from a Kali host against a
+lab Ubuntu 22.04 victim (rsyslog → Splunk `:514`) arrived as exactly **20 events
+across the same 4 source ports**, and `SSH - Brute Force Detection` returned the
+source IP with `severity = HIGH`.
+
 ## 4. Keep threat intel current
 
 Two supported ways — pick one:
