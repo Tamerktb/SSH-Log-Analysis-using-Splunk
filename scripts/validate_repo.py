@@ -21,6 +21,12 @@ Structural checks (the app must deploy as a real Splunk app):
   12. Python print() output is ASCII-safe (crashed on a cp1252 console).
   13. Every dashboard XML file is well-formed (an unescaped "<" in a <query>
       silently breaks the whole dashboard on load).
+  14. No transform REGEX repeats a named capture group - Splunk silently
+      matches nothing when it does.
+  15. Macro arguments are declared in the form Splunk 10.x actually resolves:
+      the stanza is [<name>(<N>)] and a separate `args = ` line names them. The
+      [<name>(<argname>)] shorthand fails at search time with "macro cannot be
+      found". Also flags definitions using $placeholders$ with no `args` line.
 
 Run:  python scripts/validate_repo.py
 Exit: 0 = all checks pass, 1 = at least one failure.
@@ -202,6 +208,63 @@ def main():
             bad_xml.append("%s (%s)" % (os.path.relpath(path, ROOT), exc))
     check("dashboard XML is well-formed", not bad_xml,
           "; ".join(bad_xml))
+
+    # 14. no transform REGEX uses the same named capture group twice - Splunk
+    #     silently matches nothing in that case (verified live: user/src were
+    #     never extracted because (?<user>..) and (?<src>..) each appeared in
+    #     two alternation branches of ssh_cim_extract).
+    dup_groups = []
+    stanza = None
+    for ln in transforms.splitlines():
+        s = ln.strip()
+        if s.startswith("[") and s.endswith("]"):
+            stanza = s
+        m = re.match(r"REGEX\s*=\s*(.+)$", s)
+        if m:
+            names = re.findall(r"\(\?<([A-Za-z_][A-Za-z0-9_]*)>", m.group(1))
+            dups = sorted(set(n for n in names if names.count(n) > 1))
+            if dups:
+                dup_groups.append("%s: %s" % (stanza, ", ".join(dups)))
+    check("no duplicate named capture groups in REGEX", not dup_groups,
+          "; ".join(dup_groups))
+
+    # 15. macro arguments must use the form Splunk 10.x resolves:
+    #     [<name>(<N>)]  +  args = <name1>, <name2>
+    #     The [<name>(<argname>)] shorthand fails at search time with
+    #     "The search specifies a macro '<name>' that cannot be found"
+    #     (verified live against Splunk 10.6).
+    macro_stanzas = re.split(r"^\[([^\]]+)\]\s*$", macros, flags=re.MULTILINE)
+    bad_macro_args = []
+    for i in range(1, len(macro_stanzas), 2):
+        head, body = macro_stanzas[i], macro_stanzas[i + 1]
+        m = re.match(r"^([A-Za-z0-9_]+)\(([^)]*)\)$", head)
+        args_line = re.search(r"^\s*args\s*=\s*(.+)$", body, re.MULTILINE)
+        placeholders = set(re.findall(r"\$([A-Za-z_][A-Za-z0-9_]*)\$", body))
+        if m:
+            paren = m.group(2).strip()
+            if not paren.isdigit():
+                bad_macro_args.append(
+                    "%s: parenthetical must be the argument COUNT, not '%s'"
+                    % (head, paren))
+                continue
+            if not args_line:
+                bad_macro_args.append("%s: missing 'args = ' line" % head)
+                continue
+            names = [x.strip() for x in args_line.group(1).split(",") if x.strip()]
+            if len(names) != int(paren):
+                bad_macro_args.append(
+                    "%s: declares %s arg(s) but names %d" % (head, paren, len(names)))
+            undeclared = placeholders - set(names)
+            if undeclared:
+                bad_macro_args.append(
+                    "%s: uses $%s$ not declared in args"
+                    % (head, ", ".join(sorted(undeclared))))
+        else:
+            if args_line or placeholders:
+                bad_macro_args.append(
+                    "%s: no (N) in stanza but args/placeholders present" % head)
+    check("macro args use [name(N)] + args form", not bad_macro_args,
+          "; ".join(bad_macro_args))
 
     print()
     if failures:
